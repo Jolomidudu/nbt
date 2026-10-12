@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Naija Business Tycoon
 
-## Getting Started
+A Phase 1 browser prototype set on Hustle Street, a fictional Lagos neighborhood. Players explore an isometric block, choose one of six commercial plots, and build their first local business. There is no backend or real-money functionality.
 
-First, run the development server:
+## Setup
+
+Requires Node.js 20 or later and npm.
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). Use `npm run build` to create a production build, `npm run lint` for ESLint, and `npm test` for the purchase and save-validation tests.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Phaser 3.90 is loaded only in the browser and renders a deterministic isometric neighborhood with six stable commercial plots.
+- Drag or touch-drag to pan, use the mouse wheel or a two-finger pinch to zoom, and reset the camera from the top bar.
+- Start with ₦50,000 and choose a POS kiosk (₦20,000), provision shop (₦35,000), or food stand (₦45,000).
+- Purchases update the wallet and occupied plot immediately. Tap an owned business to inspect its type, level, and purchase cost.
+- Progress is stored in a versioned, validated localStorage save. Reset Progress is available in Settings and requires confirmation.
+- Help, wallet, business count, player level, loading, and route-error states are included.
 
-## Learn More
+## Controls
 
-To learn more about Next.js, take a look at the following resources:
+- Tap/click an empty plot to open its purchase panel.
+- Tap/click a business type, then select Build to confirm the purchase.
+- Drag the map to pan; scroll or pinch to zoom.
+- Use the compass button to reset the camera. Settings contains the progress reset.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Phase 1 limitations
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This is a local single-player prototype. Businesses do not generate income and cannot be upgraded. There are no customers, simulation timers, online services, accounts, leaderboards, payments, or multiplayer. Save data stays in the browser's localStorage and can be lost if browser site data is cleared.

@@ -1,69 +1,39 @@
-import Image from "next/image";
+import Link from "next/link";
+import { ArrowDownRight, ArrowUpRight, Coins, MapPinned, Store } from "lucide-react";
+
+const houses = ["house-coral", "house-green", "house-gold", "house-blue", "house-peach"];
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="landing-page">
+      <section className="landing-hero">
+        <div className="landing-grid" aria-hidden="true" />
+        <div className="landing-skyline" aria-hidden="true">
+          {houses.map((house, index) => <div className={`sky-house ${house}`} key={house} style={{ "--house-index": index } as React.CSSProperties}><span /><i /></div>)}
+          <div className="sky-tree tree-one" /><div className="sky-tree tree-two" />
+          <div className="street-ribbon"><span>HUSTLE STREET</span><i /> <small>LAGOS, NIGERIA</small></div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <header className="landing-nav">
+          <Link href="/" className="brand-lockup" aria-label="Naija Business Tycoon home"><span className="brand-mark"><Store size={20} strokeWidth={2.4} /></span><span><strong>NAIJA</strong><small>BUSINESS TYCOON</small></span></Link>
+          <span className="prototype-label">LOCAL PROTOTYPE <i /></span>
+        </header>
+        <div className="landing-copy">
+          <div className="eyebrow light-eyebrow"><span /> A LITTLE STREET WITH BIG PLANS</div>
+          <h1>Make it on<br /><em>Hustle Street.</em></h1>
+          <p>Six plots, three businesses, one ₦50,000 head start. Your corner of Lagos is ready when you are.</p>
+          <Link href="/game" className="landing-cta">Play Now <ArrowUpRight size={19} /></Link>
+          <div className="landing-trust"><span><Coins size={15} /> ₦50,000 to start</span><i /><span><MapPinned size={15} /> Your own block</span></div>
         </div>
-      </main>
-    </div>
+        <div className="landing-bottom"><span>THE NEIGHBORHOOD IS YOURS TO BUILD</span><a href="#how-it-works">Take a look <ArrowDownRight size={15} /></a></div>
+      </section>
+
+      <section id="how-it-works" className="landing-details">
+        <div><span className="eyebrow">FIRST THINGS FIRST</span><h2>Start small.<br /><em>Build with purpose.</em></h2></div>
+        <p>Pick an empty plot, choose a neighborhood business, and make it yours. Your progress stays right here on this device.</p>
+        <div className="starter-businesses"><span><b>01</b> POS kiosk</span><span><b>02</b> Provision shop</span><span><b>03</b> Food stand</span></div>
+        <Link href="/game" className="details-link">Step onto the street <ArrowUpRight size={17} /></Link>
+      </section>
+      <footer className="landing-footer"><span>NAIJA BUSINESS TYCOON</span><span>Phase 1 · The first storefront</span></footer>
+    </main>
   );
 }
