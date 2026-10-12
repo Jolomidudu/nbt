@@ -7,8 +7,6 @@ import { GameCanvas } from "@/components/game/GameCanvas";
 import { HelpOverlay } from "@/components/game/HelpOverlay";
 import { PlotPanel } from "@/components/game/PlotPanel";
 import { formatNaira } from "@/game/data/businessTypes";
-import { PLOTS } from "@/game/data/mapData";
-import type { Business } from "@/game/types";
 import type { PurchaseResult } from "@/lib/gameRules";
 import { useGameStore } from "@/stores/useGameStore";
 

@@ -14,7 +14,7 @@ describe("purchaseBusiness", () => {
 
   it("rejects a purchase when the wallet is short", () => {
     const player = { ...createInitialPlayerState(), wallet: 19_999 };
-    expect(purchaseBusiness(player, "plot-01", "pos").error).toBe("insufficient-funds");
+    expect(purchaseBusiness(player, "plot-01", "pos")).toEqual({ ok: false, error: "insufficient-funds" });
     expect(player.wallet).toBe(19_999);
   });
 

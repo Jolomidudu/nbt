@@ -45,7 +45,7 @@ body {
 .eyebrow { display: block; color: #698272; font-size: 10px; font-weight: 800; line-height: 1.4; letter-spacing: 0; }
 .light-eyebrow { display: flex; align-items: center; gap: 9px; color: #f0d891; }
 .light-eyebrow span { width: 18px; height: 2px; background: #edc357; }
-.landing-copy h1 { margin: 18px 0 0; color: #fff9ed; font-family: Georgia, "Times New Roman", serif; font-size: clamp(54px, 7.7vw, 92px); font-weight: 500; line-height: .98; letter-spacing: 0; }
+.landing-copy h1 { margin: 18px 0 0; color: #fff9ed; font-family: Georgia, "Times New Roman", serif; font-size: 92px; font-weight: 500; line-height: .98; letter-spacing: 0; }
 .landing-copy h1 em,.landing-details h2 em { color: #f1c45b; font-weight: 400; }
 .landing-copy > p { max-width: 420px; margin: 23px 0 0; color: #ecf0dc; font-size: 16px; line-height: 1.8; }
 .landing-cta { display: inline-flex; min-height: 52px; align-items: center; gap: 22px; margin-top: 28px; padding: 0 19px; border-radius: 6px; background: #efbf4f; color: #193535; font-size: 14px; font-weight: 800; text-decoration: none; transition: background .18s, transform .18s; }

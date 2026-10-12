@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { GAME_EVENTS } from "@/game/bridge/gameEvents";
 import { BUSINESS_TYPES } from "@/game/data/businessTypes";
 import { MAP_ORIGIN, MAP_SIZE, PLOTS, TILE_HEIGHT, TILE_WIDTH } from "@/game/data/mapData";
@@ -25,9 +25,6 @@ export default class WorldScene extends Phaser.Scene {
   private readonly pointerPositions = new Map<number, Point>();
   private selectedPlotId: string | null = null;
   private hoveredPlotId: string | null = null;
-  private downPlotId: string | null = null;
-  private downPoint: Point | null = null;
-  private dragDistance = 0;
   private pinchDistance = 0;
 
   constructor() {
@@ -144,6 +141,10 @@ export default class WorldScene extends Phaser.Scene {
         if (this.hoveredPlotId === plot.id) this.hoveredPlotId = null;
         this.updateHighlights();
         this.game.canvas.style.cursor = "grab";
+      });
+      zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+        const distance = Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.x, pointer.y);
+        if (distance < 9) this.game.events.emit(GAME_EVENTS.plotSelected, plot.id);
       });
     }
   }
@@ -320,11 +321,7 @@ export default class WorldScene extends Phaser.Scene {
     }
   }
 
-  private onPointerDown(pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]): void {
-    const target = currentlyOver.find((gameObject) => typeof gameObject.getData("plotId") === "string");
-    this.downPlotId = target?.getData("plotId") as string | undefined ?? null;
-    this.downPoint = { x: pointer.x, y: pointer.y };
-    this.dragDistance = 0;
+  private onPointerDown(pointer: Phaser.Input.Pointer): void {
     this.pointerPositions.set(pointer.id, { x: pointer.x, y: pointer.y });
     this.pinchDistance = 0;
     this.game.canvas.style.cursor = "grabbing";
@@ -340,7 +337,6 @@ export default class WorldScene extends Phaser.Scene {
       this.pinchDistance = distance;
       this.pointerPositions.set(first.id, { x: first.x, y: first.y });
       this.pointerPositions.set(second.id, { x: second.x, y: second.y });
-      this.dragDistance = 20;
       return;
     }
 
@@ -348,19 +344,13 @@ export default class WorldScene extends Phaser.Scene {
     if (!previous) return;
     const deltaX = pointer.x - previous.x;
     const deltaY = pointer.y - previous.y;
-    this.dragDistance += Math.hypot(deltaX, deltaY);
     this.pointerPositions.set(pointer.id, { x: pointer.x, y: pointer.y });
     this.cameras.main.scrollX -= deltaX / this.cameras.main.zoom;
     this.cameras.main.scrollY -= deltaY / this.cameras.main.zoom;
   }
 
   private onPointerUp(pointer: Phaser.Input.Pointer): void {
-    if (this.downPoint && this.dragDistance < 9 && this.downPlotId) {
-      this.game.events.emit(GAME_EVENTS.plotSelected, this.downPlotId);
-    }
     this.pointerPositions.delete(pointer.id);
-    this.downPoint = null;
-    this.downPlotId = null;
     this.pinchDistance = 0;
     this.game.canvas.style.cursor = "grab";
   }
