@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CircleHelp, Coins, Compass, Settings2, Store, Trophy, X } from "lucide-react";
+import { ArrowLeft, CircleHelp, Coins, Compass, Pause, Play, Settings2, Store, Trophy, X } from "lucide-react";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import { HelpOverlay } from "@/components/game/HelpOverlay";
 import { PlotPanel } from "@/components/game/PlotPanel";
 import { formatNaira } from "@/game/data/businessTypes";
+import { formatGameClock, getGameClock } from "@/game/simulation/clock";
+import { SimulationEngine, SimulationRunner, type SimulationScheduler } from "@/game/simulation/engine";
 import type { PurchaseResult } from "@/lib/gameRules";
 import { useGameStore } from "@/stores/useGameStore";
 
@@ -15,7 +17,12 @@ export function GameExperience() {
   const businesses = useGameStore((state) => state.businesses);
   const level = useGameStore((state) => state.level);
   const hydrated = useGameStore((state) => state.hydrated);
+  const elapsedActiveMs = useGameStore((state) => state.elapsedActiveMs);
+  const manuallyPaused = useGameStore((state) => state.manuallyPaused);
+  const setElapsedActiveMs = useGameStore((state) => state.setElapsedActiveMs);
+  const setManuallyPaused = useGameStore((state) => state.setManuallyPaused);
   const resetProgress = useGameStore((state) => state.resetProgress);
+  const simulationRunnerRef = useRef<SimulationRunner | null>(null);
   const [selectedPlotId, setSelectedPlotId] = useState<string | null>(null);
   const [resetToken, setResetToken] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
@@ -26,6 +33,61 @@ export function GameExperience() {
   useEffect(() => {
     useGameStore.getState().hydrate();
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const saved = useGameStore.getState();
+    let lastPersistedMs = saved.elapsedActiveMs;
+    const scheduler: SimulationScheduler = {
+      now: () => performance.now(),
+      setInterval: (callback, delayMs) => window.setInterval(callback, delayMs),
+      clearInterval: (handle) => window.clearInterval(handle as number),
+    };
+    const runner = new SimulationRunner(
+      new SimulationEngine(saved.elapsedActiveMs),
+      scheduler,
+      (snapshot) => {
+        const store = useGameStore.getState();
+        store.setElapsedActiveMs(snapshot.elapsedActiveMs);
+        if (snapshot.elapsedActiveMs - lastPersistedMs >= 5000) {
+          store.persistSimulation();
+          lastPersistedMs = snapshot.elapsedActiveMs;
+        }
+      },
+      saved.manuallyPaused,
+    );
+    simulationRunnerRef.current = runner;
+
+    const persistOnTransition = () => {
+      runner.setVisibilityHidden(document.visibilityState === "hidden");
+      useGameStore.getState().persistSimulation();
+      lastPersistedMs = useGameStore.getState().elapsedActiveMs;
+    };
+    const suspendForPageHide = () => {
+      runner.setVisibilityHidden(true);
+      useGameStore.getState().persistSimulation();
+      lastPersistedMs = useGameStore.getState().elapsedActiveMs;
+    };
+    const resumeFromPageShow = () => {
+      runner.setVisibilityHidden(document.visibilityState === "hidden");
+    };
+
+    runner.start();
+    runner.setVisibilityHidden(document.visibilityState === "hidden");
+    document.addEventListener("visibilitychange", persistOnTransition);
+    window.addEventListener("pagehide", suspendForPageHide);
+    window.addEventListener("pageshow", resumeFromPageShow);
+
+    return () => {
+      document.removeEventListener("visibilitychange", persistOnTransition);
+      window.removeEventListener("pagehide", suspendForPageHide);
+      window.removeEventListener("pageshow", resumeFromPageShow);
+      runner.stop();
+      useGameStore.getState().persistSimulation();
+      if (simulationRunnerRef.current === runner) simulationRunnerRef.current = null;
+    };
+  }, [hydrated]);
 
   useEffect(() => {
     if (!feedback) return;
@@ -50,11 +112,20 @@ export function GameExperience() {
 
   function confirmReset(): void {
     resetProgress();
+    simulationRunnerRef.current?.reset(0, false);
     setSelectedPlotId(null);
     setShowResetDialog(false);
     setShowSettings(false);
     setFeedback("Progress reset. Your ₦50,000 starting wallet is back.");
   }
+
+  function togglePause(): void {
+    const nextPaused = !manuallyPaused;
+    simulationRunnerRef.current?.setManuallyPaused(nextPaused);
+    setManuallyPaused(nextPaused);
+  }
+
+  const gameClock = getGameClock(elapsedActiveMs);
 
   return (
     <main className="game-shell min-h-screen px-3 pb-6 pt-3 sm:px-6 sm:pt-5">
@@ -83,10 +154,27 @@ export function GameExperience() {
             <p className="eyebrow">YOUR NEIGHBORHOOD, YOUR NEXT MOVE</p>
             <h1>Hustle Street <span>·</span> <em>Lagos</em></h1>
           </div>
-          <div className="player-stats" aria-label="Player stats">
-            <div className="stat-pill wallet-pill"><span className="stat-icon"><Coins size={17} /></span><span><small>WALLET</small><strong>{hydrated ? formatNaira(wallet) : "₦50,000"}</strong></span></div>
-            <div className="stat-pill"><span className="stat-icon businesses-icon"><Store size={16} /></span><span><small>BUSINESSES</small><strong>{businesses.length} / 6</strong></span></div>
-            <div className="stat-pill"><span className="stat-icon level-icon"><Trophy size={16} /></span><span><small>PLAYER LEVEL</small><strong>{level}</strong></span></div>
+          <div className="heading-controls">
+            <div className={`game-clock${manuallyPaused ? " is-paused" : ""}`} aria-label={`Day ${gameClock.day}, ${formatGameClock(gameClock)}${manuallyPaused ? ", paused" : ""}`}>
+              <span className="clock-face" aria-hidden="true">◷</span>
+              <span className="clock-readout"><small>DAY {gameClock.day}</small><strong>{formatGameClock(gameClock)}</strong></span>
+              {manuallyPaused && <span className="paused-indicator">PAUSED</span>}
+              <button
+                type="button"
+                className="clock-toggle"
+                onClick={togglePause}
+                aria-label={manuallyPaused ? "Resume game" : "Pause game"}
+                aria-pressed={manuallyPaused}
+                title={manuallyPaused ? "Resume game" : "Pause game"}
+              >
+                {manuallyPaused ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
+              </button>
+            </div>
+            <div className="player-stats" aria-label="Player stats">
+              <div className="stat-pill wallet-pill"><span className="stat-icon"><Coins size={17} /></span><span><small>WALLET</small><strong>{hydrated ? formatNaira(wallet) : "₦50,000"}</strong></span></div>
+              <div className="stat-pill"><span className="stat-icon businesses-icon"><Store size={16} /></span><span><small>BUSINESSES</small><strong>{businesses.length} / 6</strong></span></div>
+              <div className="stat-pill"><span className="stat-icon level-icon"><Trophy size={16} /></span><span><small>PLAYER LEVEL</small><strong>{level}</strong></span></div>
+            </div>
           </div>
         </section>
 
