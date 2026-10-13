@@ -21,6 +21,8 @@ export interface PlayerState {
 }
 
 export interface GameSave {
-  version: 1;
+  version: 2;
   player: PlayerState;
+  elapsedActiveMs: number;
+  manuallyPaused: boolean;
 }

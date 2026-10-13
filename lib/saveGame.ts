@@ -1,5 +1,6 @@
 import { BUSINESS_TYPES } from "@/game/data/businessTypes";
 import { PLOT_IDS } from "@/game/data/mapData";
+import { MAX_ELAPSED_ACTIVE_MS } from "@/game/simulation/clock";
 import type { Business, BusinessType, GameSave, PlayerState } from "@/game/types";
 
 export const SAVE_KEY = "naija-business-tycoon-save-v1";
@@ -26,7 +27,7 @@ function isBusiness(value: unknown): value is Business {
 }
 
 export function validateGameSave(value: unknown): GameSave | null {
-  if (!isRecord(value) || value.version !== 1 || !isRecord(value.player)) {
+  if (!isRecord(value) || (value.version !== 1 && value.version !== 2) || !isRecord(value.player)) {
     return null;
   }
 
@@ -49,8 +50,16 @@ export function validateGameSave(value: unknown): GameSave | null {
   }
 
   return {
-    version: 1,
+    version: 2,
     player: { wallet: Number(wallet), level: Number(level), businesses: businesses as Business[] },
+    elapsedActiveMs:
+      value.version === 2 && Number.isSafeInteger(value.elapsedActiveMs) &&
+      Number(value.elapsedActiveMs) >= 0 && Number(value.elapsedActiveMs) <= MAX_ELAPSED_ACTIVE_MS
+        ? Number(value.elapsedActiveMs)
+        : 0,
+    manuallyPaused: value.version === 2 && typeof value.manuallyPaused === "boolean"
+      ? value.manuallyPaused
+      : false,
   };
 }
 
@@ -63,19 +72,46 @@ function getStorage(storage?: Storage): Storage | null {
   }
 }
 
-export function loadGameSave(storage?: Storage): PlayerState | null {
+export function loadGameSession(storage?: Storage): GameSave | null {
   try {
     const raw = getStorage(storage)?.getItem(SAVE_KEY);
     if (!raw) return null;
-    return validateGameSave(JSON.parse(raw))?.player ?? null;
+    return validateGameSave(JSON.parse(raw));
   } catch {
     return null;
   }
 }
 
+export function loadGameSave(storage?: Storage): PlayerState | null {
+  return loadGameSession(storage)?.player ?? null;
+}
+
 export function writeGameSave(player: PlayerState, storage?: Storage): void {
+  const previous = loadGameSession(storage);
+  writeGameSession(player, previous?.elapsedActiveMs ?? 0, previous?.manuallyPaused ?? false, storage);
+}
+
+export function writeGameSession(
+  player: PlayerState,
+  elapsedActiveMs: number,
+  manuallyPaused: boolean,
+  storage?: Storage,
+): void {
   try {
-    getStorage(storage)?.setItem(SAVE_KEY, JSON.stringify({ version: 1, player } satisfies GameSave));
+    const safeElapsedActiveMs = Number.isSafeInteger(elapsedActiveMs) && elapsedActiveMs >= 0
+      ? Math.min(elapsedActiveMs, MAX_ELAPSED_ACTIVE_MS)
+      : 0;
+    const save: GameSave = {
+      version: 2,
+      player: {
+        wallet: player.wallet,
+        businesses: player.businesses,
+        level: player.level,
+      },
+      elapsedActiveMs: safeElapsedActiveMs,
+      manuallyPaused,
+    };
+    getStorage(storage)?.setItem(SAVE_KEY, JSON.stringify(save));
   } catch {
     // Storage can be unavailable in private browsing or restricted contexts.
   }
