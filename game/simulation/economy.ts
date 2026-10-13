@@ -17,10 +17,10 @@ export const MAX_CUSTOMERS_PER_BUSINESS = 3;
 export const CUSTOMER_ROUTE_TILES: Record<string, Array<[number, number]>> = {
   "plot-01": [[5, 3], [4, 3], [3, 3], [3, 2], [2, 2]],
   "plot-02": [[5, 3], [6, 3], [6, 2], [5, 2]],
-  "plot-03": [[5, 3], [4, 3], [3, 3], [2, 3], [1, 3], [1, 4]],
-  "plot-04": [[5, 3], [5, 4], [4, 4]],
-  "plot-05": [[5, 3], [6, 3], [7, 3], [7, 4]],
-  "plot-06": [[5, 3], [5, 4], [5, 5], [5, 6], [4, 6], [3, 6]],
+  "plot-03": [[5, 3], [4, 3], [3, 3], [2, 3], [1, 3]],
+  "plot-04": [[5, 3], [5, 4]],
+  "plot-05": [[5, 3], [6, 3], [7, 3]],
+  "plot-06": [[5, 3], [5, 4], [5, 5], [5, 6], [4, 6]],
 };
 
 export const BUSINESS_ECONOMY_RULES: Record<BusinessType, {
@@ -79,7 +79,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isSafeNonNegativeInteger(value: unknown): value is number {
-  return Number.isSafeInteger(value) && Number(value) >= 0;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 export function normalizeEconomyState(
@@ -110,9 +110,10 @@ export function normalizeEconomyState(
       totalTransactions * rules.revenuePerTransaction === totalRevenue;
     const validDailyCount =
       isSafeNonNegativeInteger(dailyTransactions) &&
-      Number(dailyTransactions) <= rules.maxDailyTransactions;
+      Number(dailyTransactions) <= rules.maxDailyTransactions &&
+      isSafeNonNegativeInteger(totalTransactions) && Number(dailyTransactions) <= Number(totalTransactions);
 
-    if (!validTotals || !validDailyCount) {
+    if (!validTotals || !validDailyCount || !Number.isSafeInteger(Number(totalTransactions) * rules.revenuePerTransaction)) {
       businessLedgers[business.id] = createBusinessLedger(business.id, day);
       continue;
     }
@@ -127,14 +128,24 @@ export function normalizeEconomyState(
 
   const activeCustomers: SimulatedCustomer[] = [];
   const customerIds = new Set<string>();
+  const customerCounts = new Map<string, number>();
   if (Array.isArray(value.activeCustomers)) {
     for (const saved of value.activeCustomers) {
-      if (activeCustomers.length >= MAX_ACTIVE_CUSTOMERS || !isRecord(saved)) break;
+      if (activeCustomers.length >= MAX_ACTIVE_CUSTOMERS) break;
+      if (!isRecord(saved)) continue;
       const business = businesses.find((owned) => owned.id === saved.businessId && owned.plotId === saved.plotId);
+      const idParts = typeof saved.id === "string" ? saved.id.split(":") : [];
+      const spawnDay = Number(idParts[0]);
+      const spawnTick = Number(idParts[2]);
+      const activeForBusiness = business ? customerCounts.get(business.id) ?? 0 : MAX_CUSTOMERS_PER_BUSINESS;
       const validStage = ["SPAWNED", "WALKING", "WAITING", "SERVED", "EXITING"].includes(String(saved.stage));
       if (
         !business ||
         typeof saved.id !== "string" ||
+        idParts.length !== 3 || idParts[1] !== business.id ||
+        !Number.isSafeInteger(spawnDay) || spawnDay < 1 || spawnDay > day ||
+        !Number.isSafeInteger(spawnTick) || spawnTick < 1 || spawnTick > tickIndex ||
+        activeForBusiness >= MAX_CUSTOMERS_PER_BUSINESS ||
         customerIds.has(saved.id) ||
         !validStage ||
         !isSafeNonNegativeInteger(saved.routeStep) ||
@@ -143,6 +154,7 @@ export function normalizeEconomyState(
         Number(saved.outfitIndex) < 0 || Number(saved.outfitIndex) > 4
       ) continue;
       customerIds.add(saved.id);
+      customerCounts.set(business.id, activeForBusiness + 1);
       activeCustomers.push({
         id: saved.id,
         businessId: business.id,
@@ -165,8 +177,8 @@ export function normalizeEconomyState(
       if (
         !business || !ledger ||
         saved.id !== `${business.id}:sale:${sequence}` || sequence < 1 || sequence > ledger.totalTransactions ||
-        !isSafeNonNegativeInteger(saved.simulationTick) || saved.simulationTick > tickIndex ||
-        !isSafeNonNegativeInteger(saved.gameDay) || saved.gameDay > day ||
+        !isSafeNonNegativeInteger(saved.simulationTick) || saved.simulationTick < 1 || saved.simulationTick > tickIndex ||
+        !isSafeNonNegativeInteger(saved.gameDay) || saved.gameDay < 1 || saved.gameDay > day ||
         saved.revenue !== BUSINESS_ECONOMY_RULES[business.type].revenuePerTransaction
       ) continue;
       transactionIds.add(saved.id);
@@ -181,10 +193,12 @@ export function normalizeEconomyState(
     }
   }
 
-  const totalRevenue = isSafeNonNegativeInteger(value.totalRevenue)
-    ? Number(value.totalRevenue)
-    : Object.values(businessLedgers).reduce((sum, ledger) => sum + ledger.totalRevenue, 0);
-  const safeTotalRevenue = totalRevenue <= Number.MAX_SAFE_INTEGER ? totalRevenue : 0;
+  let safeTotalRevenue = Object.values(businessLedgers).reduce((sum, ledger) => sum + ledger.totalRevenue, 0);
+  if (!Number.isSafeInteger(safeTotalRevenue)) {
+    for (const business of businesses) businessLedgers[business.id] = createBusinessLedger(business.id, day);
+    safeTotalRevenue = 0;
+    recentTransactions.length = 0;
+  }
 
   return {
     totalRevenue: safeTotalRevenue,

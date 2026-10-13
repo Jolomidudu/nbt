@@ -24,7 +24,7 @@ export function GameExperience() {
   const economy = useGameStore((state) => state.economy);
   const setManuallyPaused = useGameStore((state) => state.setManuallyPaused);
   const resetProgress = useGameStore((state) => state.resetProgress);
-  const simulationRunnerRef = useRef<SimulationRunner | null>(null);
+  const simulationRunnerRef = useRef<SimulationRunner<GameSimulationState> | null>(null);
   const transactionNoticeRef = useRef<string | null>(null);
   const [selectedPlotId, setSelectedPlotId] = useState<string | null>(null);
   const [resetToken, setResetToken] = useState(0);
@@ -88,7 +88,9 @@ export function GameExperience() {
       lastPersistedMs = useGameStore.getState().elapsedActiveMs;
     };
     const resumeFromPageShow = () => {
-      runner.setVisibilityHidden(document.visibilityState === "hidden");
+      const hidden = document.visibilityState === "hidden";
+      setPageHidden(hidden);
+      runner.setVisibilityHidden(hidden);
     };
 
     runner.start();

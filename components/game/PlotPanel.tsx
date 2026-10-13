@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowUpRight, Building2, CircleDollarSign, LockKeyhole, X } from "lucide-react";
 import { BUSINESS_TYPES, formatNaira } from "@/game/data/businessTypes";
+import { BUSINESS_ECONOMY_RULES } from "@/game/simulation/economy";
 import type { Business, BusinessType } from "@/game/types";
 import type { PurchaseResult } from "@/lib/gameRules";
 import { useGameStore } from "@/stores/useGameStore";
@@ -21,6 +22,7 @@ export function PlotPanel({ plotId, business, onClose, onPurchase }: PlotPanelPr
   const [selectedType, setSelectedType] = useState<BusinessType>("pos");
   const wallet = useGameStore((state) => state.wallet);
   const purchase = useGameStore((state) => state.purchase);
+  const economy = useGameStore((state) => state.economy);
   const selectedBusiness = BUSINESS_TYPES[selectedType];
 
   if (!plotId) {
@@ -38,6 +40,9 @@ export function PlotPanel({ plotId, business, onClose, onPurchase }: PlotPanelPr
 
   if (business) {
     const definition = BUSINESS_TYPES[business.type];
+    const ledger = economy.businessLedgers[business.id];
+    const activeCustomers = economy.activeCustomers.filter((customer) => customer.businessId === business.id).length;
+    const dailyLimit = BUSINESS_ECONOMY_RULES[business.type].maxDailyTransactions;
     return (
       <aside className="plot-panel p-5 sm:p-6" aria-live="polite">
         <div className="flex items-start justify-between">
@@ -54,7 +59,10 @@ export function PlotPanel({ plotId, business, onClose, onPurchase }: PlotPanelPr
         <div className="mt-5 space-y-3">
           <div className="detail-row"><span>Business level</span><strong>Level {business.level}</strong></div>
           <div className="detail-row"><span>Purchase cost</span><strong>{formatNaira(business.purchaseCost)}</strong></div>
-          <div className="detail-row"><span>Plot status</span><strong className="text-emerald-700">Owned</strong></div>
+          <div className="detail-row"><span>Revenue earned</span><strong>{formatNaira(ledger?.totalRevenue ?? 0)}</strong></div>
+          <div className="detail-row"><span>Sales today</span><strong>{ledger?.dailyTransactions ?? 0} / {dailyLimit}</strong></div>
+          <div className="detail-row"><span>Completed sales</span><strong>{ledger?.totalTransactions ?? 0}</strong></div>
+          <div className="detail-row"><span>Activity</span><strong className="business-activity"><i className={activeCustomers ? "is-active" : ""} />{activeCustomers ? `${activeCustomers} customer${activeCustomers === 1 ? "" : "s"} visiting` : "Open for customers"}</strong></div>
         </div>
       </aside>
     );
