@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CircleHelp, Coins, Compass, Pause, Play, Settings2, Store, Trophy, X } from "lucide-react";
+import { ArrowLeft, CircleHelp, Clock, Coins, Compass, Pause, Play, Settings2, Store, Trophy, X } from "lucide-react";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import { HelpOverlay } from "@/components/game/HelpOverlay";
 import { PlotPanel } from "@/components/game/PlotPanel";
@@ -155,7 +155,7 @@ export function GameExperience() {
           </div>
           <div className="heading-controls">
             <div className={`game-clock${manuallyPaused ? " is-paused" : ""}`} aria-label={`Day ${gameClock.day}, ${formatGameClock(gameClock)}${manuallyPaused ? ", paused" : ""}`}>
-              <span className="clock-face" aria-hidden="true">◷</span>
+              <span className="clock-face" aria-hidden="true"><Clock size={18} /></span>
               <span className="clock-readout"><small>DAY {gameClock.day}</small><strong>{formatGameClock(gameClock)}</strong></span>
               {manuallyPaused && <span className="paused-indicator">PAUSED</span>}
               <button
@@ -208,7 +208,7 @@ export function GameExperience() {
       {feedback && <div className="feedback-toast" role="status" aria-live="polite"><span>{feedback}</span><button type="button" onClick={() => setFeedback("")} aria-label="Dismiss message"><X size={16} /></button></div>}
       {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
       {showResetDialog && <div className="dialog-backdrop" role="presentation"><section className="dialog-panel max-w-sm" role="alertdialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-description">
-        <div className="panel-kicker">START FRESH?</div><h2 id="reset-title" className="mt-2 text-2xl font-bold">Reset your progress</h2><p id="reset-description" className="mt-3 text-sm leading-6 text-slate-600">This removes the businesses and wallet saved on this device. Your neighborhood will return to its starting state.</p>
+        <div className="panel-kicker">START FRESH?</div><h2 id="reset-title" className="mt-2 text-2xl font-bold">Reset your progress</h2><p id="reset-description" className="mt-3 text-sm leading-6 text-slate-600">This removes the businesses and wallet saved on this device and resets the game clock. Your neighborhood will return to its starting state.</p>
         <div className="mt-6 flex gap-2"><button type="button" onClick={() => setShowResetDialog(false)} className="secondary-button flex-1">Keep playing</button><button type="button" onClick={confirmReset} className="danger-button flex-1">Reset progress</button></div>
       </section></div>}
     </main>

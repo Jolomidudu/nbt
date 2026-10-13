@@ -103,7 +103,11 @@ export function writeGameSession(
       : 0;
     const save: GameSave = {
       version: 2,
-      player,
+      player: {
+        wallet: player.wallet,
+        businesses: player.businesses,
+        level: player.level,
+      },
       elapsedActiveMs: safeElapsedActiveMs,
       manuallyPaused,
     };

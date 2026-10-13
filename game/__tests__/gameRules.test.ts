@@ -104,9 +104,15 @@ describe("validateGameSave", () => {
       setItem: (key: string, value: string) => { values.set(key, value); },
       removeItem: (key: string) => { values.delete(key); },
     } as unknown as Storage;
-    writeGameSession(createInitialPlayerState(), 15_000, true, storage);
+    const playerWithStoreFields = {
+      ...createInitialPlayerState(),
+      hydrated: true,
+      elapsedActiveMs: 15_000,
+    };
+    writeGameSession(playerWithStoreFields, 15_000, true, storage);
     expect(JSON.parse(values.get("naija-business-tycoon-save-v1") ?? "{}")).toMatchObject({
       version: 2,
+      player: createInitialPlayerState(),
       elapsedActiveMs: 15_000,
       manuallyPaused: true,
     });
