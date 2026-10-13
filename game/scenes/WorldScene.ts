@@ -2,7 +2,8 @@ import * as Phaser from "phaser";
 import { GAME_EVENTS } from "@/game/bridge/gameEvents";
 import { BUSINESS_TYPES } from "@/game/data/businessTypes";
 import { MAP_ORIGIN, MAP_SIZE, PLOTS, TILE_HEIGHT, TILE_WIDTH } from "@/game/data/mapData";
-import type { Business, Plot } from "@/game/types";
+import { CUSTOMER_ROUTE_TILES } from "@/game/simulation/economy";
+import type { Business, Plot, SimulatedCustomer } from "@/game/types";
 
 const COLORS = {
   grass: 0x82bd72,
@@ -17,11 +18,15 @@ const COLORS = {
 };
 
 type Point = { x: number; y: number };
+type CustomerView = { view: Phaser.GameObjects.Container; routeStep: number; stage: string; outfitIndex: number };
+
+const CUSTOMER_COLORS = [0x317f69, 0xd66e4c, 0x356f9c, 0xb78a2e, 0x794f8e];
 
 export default class WorldScene extends Phaser.Scene {
   private readonly plotZones = new Map<string, Phaser.GameObjects.Zone>();
   private readonly plotHighlights = new Map<string, Phaser.GameObjects.Graphics>();
   private readonly buildingViews = new Map<string, Phaser.GameObjects.Container>();
+  private readonly customerViews = new Map<string, CustomerView>();
   private readonly pointerPositions = new Map<number, Point>();
   private selectedPlotId: string | null = null;
   private hoveredPlotId: string | null = null;
@@ -249,6 +254,8 @@ export default class WorldScene extends Phaser.Scene {
 
   private bindEvents(): void {
     this.game.events.on(GAME_EVENTS.businessesChanged, this.renderBusinesses, this);
+    this.game.events.on(GAME_EVENTS.customersChanged, this.renderCustomers, this);
+    this.game.events.on(GAME_EVENTS.simulationPausedChanged, this.setSimulationPaused, this);
     this.game.events.on(GAME_EVENTS.plotSelectionChanged, this.selectPlot, this);
     this.game.events.on(GAME_EVENTS.cameraReset, this.resetCamera, this);
     this.input.on("pointerdown", this.onPointerDown, this);
@@ -266,6 +273,72 @@ export default class WorldScene extends Phaser.Scene {
       if (!plot) continue;
       this.buildingViews.set(business.id, this.drawBusiness(plot, business));
     }
+  }
+
+  private renderCustomers(customers: SimulatedCustomer[]): void {
+    const present = new Set(customers.map((customer) => customer.id));
+    for (const [customerId, customerView] of this.customerViews) {
+      if (present.has(customerId)) continue;
+      this.tweens.killTweensOf(customerView.view);
+      customerView.view.destroy(true);
+      this.customerViews.delete(customerId);
+    }
+
+    for (const customer of customers) {
+      const route = CUSTOMER_ROUTE_TILES[customer.plotId];
+      if (!route) continue;
+      const tile = route[Math.min(customer.routeStep, route.length - 1)];
+      const point = this.project(tile[0], tile[1]);
+      const current = this.customerViews.get(customer.id);
+      if (!current) {
+        const view = this.createCustomerView(customer, point);
+        this.customerViews.set(customer.id, {
+          view,
+          routeStep: customer.routeStep,
+          stage: customer.stage,
+          outfitIndex: customer.outfitIndex,
+        });
+        continue;
+      }
+
+      current.view.setDepth((tile[0] + tile[1]) * 10 + 9);
+      if (current.routeStep === customer.routeStep && current.stage === customer.stage) continue;
+      current.routeStep = customer.routeStep;
+      current.stage = customer.stage;
+      current.outfitIndex = customer.outfitIndex;
+      this.tweens.killTweensOf(current.view);
+      this.tweens.add({
+        targets: current.view,
+        x: point.x,
+        y: point.y,
+        duration: customer.stage === "WAITING" || customer.stage === "SERVED" ? 300 : 700,
+        ease: "Sine.easeInOut",
+      });
+    }
+  }
+
+  private createCustomerView(customer: SimulatedCustomer, point: Point): Phaser.GameObjects.Container {
+    const outfit = CUSTOMER_COLORS[customer.outfitIndex % CUSTOMER_COLORS.length];
+    const art = this.add.graphics();
+    art.fillStyle(0x25483d, 0.25);
+    art.fillEllipse(0, 3, 18, 8);
+    art.fillStyle(outfit, 1);
+    art.fillRoundedRect(-5, -13, 10, 13, 3);
+    art.lineStyle(1, 0x183a34, 0.9);
+    art.strokeRoundedRect(-5, -13, 10, 13, 3);
+    art.fillStyle(0xf0c79d, 1);
+    art.fillCircle(0, -17, 4);
+    art.fillStyle(0x382b27, 1);
+    art.fillEllipse(0, -20, 8, 4);
+    const view = this.add.container(point.x, point.y, [art]);
+    const tile = CUSTOMER_ROUTE_TILES[customer.plotId][customer.routeStep];
+    view.setDepth((tile[0] + tile[1]) * 10 + 9);
+    return view;
+  }
+
+  private setSimulationPaused(paused: boolean): void {
+    if (paused) this.tweens.pauseAll();
+    else this.tweens.resumeAll();
   }
 
   private drawBusiness(plot: Plot, business: Business): Phaser.GameObjects.Container {
@@ -383,6 +456,8 @@ export default class WorldScene extends Phaser.Scene {
   private teardown(): void {
     this.scale.off(Phaser.Scale.Events.RESIZE, this.resizeCamera, this);
     this.game.events.off(GAME_EVENTS.businessesChanged, this.renderBusinesses, this);
+    this.game.events.off(GAME_EVENTS.customersChanged, this.renderCustomers, this);
+    this.game.events.off(GAME_EVENTS.simulationPausedChanged, this.setSimulationPaused, this);
     this.game.events.off(GAME_EVENTS.plotSelectionChanged, this.selectPlot, this);
     this.game.events.off(GAME_EVENTS.cameraReset, this.resetCamera, this);
     this.input.off("pointerdown", this.onPointerDown, this);
@@ -393,5 +468,7 @@ export default class WorldScene extends Phaser.Scene {
     this.plotZones.clear();
     this.plotHighlights.clear();
     this.buildingViews.clear();
+    for (const customer of this.customerViews.values()) customer.view.destroy(true);
+    this.customerViews.clear();
   }
 }

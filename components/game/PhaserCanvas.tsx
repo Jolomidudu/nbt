@@ -3,12 +3,14 @@
 import { useEffect, useRef } from "react";
 import * as Phaser from "phaser";
 import { GAME_EVENTS } from "@/game/bridge/gameEvents";
-import type { Business } from "@/game/types";
+import type { Business, SimulatedCustomer } from "@/game/types";
 import { useGameStore } from "@/stores/useGameStore";
 import WorldScene from "@/game/scenes/WorldScene";
 
 interface PhaserCanvasProps {
   businesses: Business[];
+  customers: SimulatedCustomer[];
+  simulationPaused: boolean;
   selectedPlotId: string | null;
   resetToken: number;
   onPlotSelect: (plotId: string) => void;
@@ -16,14 +18,26 @@ interface PhaserCanvasProps {
   onWorldError: () => void;
 }
 
-export function PhaserCanvas({ businesses, selectedPlotId, resetToken, onPlotSelect, onWorldReady, onWorldError }: PhaserCanvasProps) {
+export function PhaserCanvas({ businesses, customers, simulationPaused, selectedPlotId, resetToken, onPlotSelect, onWorldReady, onWorldError }: PhaserCanvasProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const plotSelectRef = useRef(onPlotSelect);
+  const customersRef = useRef(customers);
+  const pausedRef = useRef(simulationPaused);
 
   useEffect(() => {
     plotSelectRef.current = onPlotSelect;
   }, [onPlotSelect]);
+
+  useEffect(() => {
+    customersRef.current = customers;
+    gameRef.current?.events.emit(GAME_EVENTS.customersChanged, customers);
+  }, [customers]);
+
+  useEffect(() => {
+    pausedRef.current = simulationPaused;
+    gameRef.current?.events.emit(GAME_EVENTS.simulationPausedChanged, simulationPaused);
+  }, [simulationPaused]);
 
   useEffect(() => {
     const parent = parentRef.current;
@@ -55,6 +69,8 @@ export function PhaserCanvas({ businesses, selectedPlotId, resetToken, onPlotSel
         const currentGame = game;
         sceneReadyListener = () => {
           currentGame.events.emit(GAME_EVENTS.businessesChanged, useGameStore.getState().businesses);
+          currentGame.events.emit(GAME_EVENTS.customersChanged, customersRef.current);
+          currentGame.events.emit(GAME_EVENTS.simulationPausedChanged, pausedRef.current);
           if (!cancelled) onWorldReady();
         };
         plotListener = (plotId: string) => plotSelectRef.current(plotId);

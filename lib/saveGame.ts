@@ -1,7 +1,8 @@
 import { BUSINESS_TYPES } from "@/game/data/businessTypes";
 import { PLOT_IDS } from "@/game/data/mapData";
-import { MAX_ELAPSED_ACTIVE_MS } from "@/game/simulation/clock";
-import type { Business, BusinessType, GameSave, PlayerState } from "@/game/types";
+import { getGameClock, MAX_ELAPSED_ACTIVE_MS } from "@/game/simulation/clock";
+import { normalizeEconomyState } from "@/game/simulation/economy";
+import type { Business, BusinessType, EconomyState, GameSave, PlayerState } from "@/game/types";
 
 export const SAVE_KEY = "naija-business-tycoon-save-v1";
 
@@ -27,7 +28,7 @@ function isBusiness(value: unknown): value is Business {
 }
 
 export function validateGameSave(value: unknown): GameSave | null {
-  if (!isRecord(value) || (value.version !== 1 && value.version !== 2) || !isRecord(value.player)) {
+  if (!isRecord(value) || ![1, 2, 3].includes(Number(value.version)) || !isRecord(value.player)) {
     return null;
   }
 
@@ -49,17 +50,27 @@ export function validateGameSave(value: unknown): GameSave | null {
     return null;
   }
 
-  return {
-    version: 2,
-    player: { wallet: Number(wallet), level: Number(level), businesses: businesses as Business[] },
-    elapsedActiveMs:
-      value.version === 2 && Number.isSafeInteger(value.elapsedActiveMs) &&
+  const player = { wallet: Number(wallet), level: Number(level), businesses: businesses as Business[] };
+  const elapsedActiveMs =
+      (value.version === 2 || value.version === 3) && Number.isSafeInteger(value.elapsedActiveMs) &&
       Number(value.elapsedActiveMs) >= 0 && Number(value.elapsedActiveMs) <= MAX_ELAPSED_ACTIVE_MS
         ? Number(value.elapsedActiveMs)
-        : 0,
-    manuallyPaused: value.version === 2 && typeof value.manuallyPaused === "boolean"
+        : 0;
+  const economy = normalizeEconomyState(
+    value.version === 3 ? value.economy : null,
+    player.businesses,
+    getGameClock(elapsedActiveMs).day,
+    Math.floor(elapsedActiveMs / 1000),
+  );
+
+  return {
+    version: 3,
+    player,
+    elapsedActiveMs,
+    manuallyPaused: (value.version === 2 || value.version === 3) && typeof value.manuallyPaused === "boolean"
       ? value.manuallyPaused
       : false,
+    economy,
   };
 }
 
@@ -88,28 +99,43 @@ export function loadGameSave(storage?: Storage): PlayerState | null {
 
 export function writeGameSave(player: PlayerState, storage?: Storage): void {
   const previous = loadGameSession(storage);
-  writeGameSession(player, previous?.elapsedActiveMs ?? 0, previous?.manuallyPaused ?? false, storage);
+  writeGameSession(
+    player,
+    previous?.elapsedActiveMs ?? 0,
+    previous?.manuallyPaused ?? false,
+    previous?.economy ?? null,
+    storage,
+  );
 }
 
 export function writeGameSession(
   player: PlayerState,
   elapsedActiveMs: number,
   manuallyPaused: boolean,
+  economy: EconomyState | null,
   storage?: Storage,
 ): void {
   try {
     const safeElapsedActiveMs = Number.isSafeInteger(elapsedActiveMs) && elapsedActiveMs >= 0
       ? Math.min(elapsedActiveMs, MAX_ELAPSED_ACTIVE_MS)
       : 0;
-    const save: GameSave = {
-      version: 2,
-      player: {
+    const safePlayer: PlayerState = {
         wallet: player.wallet,
         businesses: player.businesses,
         level: player.level,
-      },
+    };
+    const safeEconomy = normalizeEconomyState(
+      economy,
+      safePlayer.businesses,
+      getGameClock(safeElapsedActiveMs).day,
+      Math.floor(safeElapsedActiveMs / 1000),
+    );
+    const save: GameSave = {
+      version: 3,
+      player: safePlayer,
       elapsedActiveMs: safeElapsedActiveMs,
       manuallyPaused,
+      economy: safeEconomy,
     };
     getStorage(storage)?.setItem(SAVE_KEY, JSON.stringify(save));
   } catch {

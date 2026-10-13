@@ -8,7 +8,9 @@ import { HelpOverlay } from "@/components/game/HelpOverlay";
 import { PlotPanel } from "@/components/game/PlotPanel";
 import { formatNaira } from "@/game/data/businessTypes";
 import { formatGameClock, getGameClock } from "@/game/simulation/clock";
+import { advanceCustomerSimulation } from "@/game/simulation/economy";
 import { SimulationEngine, SimulationRunner, type SimulationScheduler } from "@/game/simulation/engine";
+import type { GameSimulationState } from "@/game/types";
 import type { PurchaseResult } from "@/lib/gameRules";
 import { useGameStore } from "@/stores/useGameStore";
 
@@ -19,15 +21,19 @@ export function GameExperience() {
   const hydrated = useGameStore((state) => state.hydrated);
   const elapsedActiveMs = useGameStore((state) => state.elapsedActiveMs);
   const manuallyPaused = useGameStore((state) => state.manuallyPaused);
+  const economy = useGameStore((state) => state.economy);
   const setManuallyPaused = useGameStore((state) => state.setManuallyPaused);
   const resetProgress = useGameStore((state) => state.resetProgress);
   const simulationRunnerRef = useRef<SimulationRunner | null>(null);
+  const transactionNoticeRef = useRef<string | null>(null);
   const [selectedPlotId, setSelectedPlotId] = useState<string | null>(null);
   const [resetToken, setResetToken] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [pageHidden, setPageHidden] = useState(false);
+  const [recentSale, setRecentSale] = useState<{ id: string; revenue: number } | null>(null);
 
   useEffect(() => {
     useGameStore.getState().hydrate();
@@ -44,26 +50,39 @@ export function GameExperience() {
       clearInterval: (handle) => window.clearInterval(handle as number),
     };
     const runner = new SimulationRunner(
-      new SimulationEngine(saved.elapsedActiveMs),
+      new SimulationEngine<GameSimulationState>(saved.elapsedActiveMs, {
+        player: { wallet: saved.wallet, businesses: saved.businesses, level: saved.level },
+        economy: saved.economy,
+      }, [advanceCustomerSimulation]),
       scheduler,
-      (snapshot) => {
+      (snapshot, state) => {
         const store = useGameStore.getState();
-        store.setElapsedActiveMs(snapshot.elapsedActiveMs);
+        store.commitSimulation(state as GameSimulationState, snapshot.elapsedActiveMs);
         if (snapshot.elapsedActiveMs - lastPersistedMs >= 5000) {
-          store.persistSimulation();
+          useGameStore.getState().persistSimulation();
           lastPersistedMs = snapshot.elapsedActiveMs;
         }
       },
       saved.manuallyPaused,
     );
     simulationRunnerRef.current = runner;
+    const unsubscribeStore = useGameStore.subscribe((state, previous) => {
+      if (state.wallet === previous.wallet && state.businesses === previous.businesses && state.economy === previous.economy) return;
+      runner.replaceState({
+        player: { wallet: state.wallet, businesses: state.businesses, level: state.level },
+        economy: state.economy,
+      });
+    });
 
     const persistOnTransition = () => {
-      runner.setVisibilityHidden(document.visibilityState === "hidden");
+      const hidden = document.visibilityState === "hidden";
+      setPageHidden(hidden);
+      runner.setVisibilityHidden(hidden);
       useGameStore.getState().persistSimulation();
       lastPersistedMs = useGameStore.getState().elapsedActiveMs;
     };
     const suspendForPageHide = () => {
+      setPageHidden(true);
       runner.setVisibilityHidden(true);
       useGameStore.getState().persistSimulation();
       lastPersistedMs = useGameStore.getState().elapsedActiveMs;
@@ -73,7 +92,9 @@ export function GameExperience() {
     };
 
     runner.start();
-    runner.setVisibilityHidden(document.visibilityState === "hidden");
+    const initiallyHidden = document.visibilityState === "hidden";
+    setPageHidden(initiallyHidden);
+    runner.setVisibilityHidden(initiallyHidden);
     document.addEventListener("visibilitychange", persistOnTransition);
     window.addEventListener("pagehide", suspendForPageHide);
     window.addEventListener("pageshow", resumeFromPageShow);
@@ -82,11 +103,27 @@ export function GameExperience() {
       document.removeEventListener("visibilitychange", persistOnTransition);
       window.removeEventListener("pagehide", suspendForPageHide);
       window.removeEventListener("pageshow", resumeFromPageShow);
+      unsubscribeStore();
       runner.stop();
       useGameStore.getState().persistSimulation();
       if (simulationRunnerRef.current === runner) simulationRunnerRef.current = null;
     };
   }, [hydrated]);
+
+  const latestTransaction = economy.recentTransactions.at(-1);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (transactionNoticeRef.current === null) {
+      transactionNoticeRef.current = latestTransaction?.id ?? "";
+      return;
+    }
+    if (!latestTransaction || transactionNoticeRef.current === latestTransaction.id) return;
+    transactionNoticeRef.current = latestTransaction.id;
+    setRecentSale({ id: latestTransaction.id, revenue: latestTransaction.revenue });
+    const timeout = window.setTimeout(() => setRecentSale(null), 3800);
+    return () => window.clearTimeout(timeout);
+  }, [hydrated, latestTransaction?.id, latestTransaction?.revenue]);
 
   useEffect(() => {
     if (!feedback) return;
@@ -95,6 +132,7 @@ export function GameExperience() {
   }, [feedback]);
 
   const selectedBusiness = businesses.find((business) => business.plotId === selectedPlotId);
+  const simulationPaused = manuallyPaused || pageHidden;
 
   function handlePurchase(result: PurchaseResult): void {
     if (result.ok) {
@@ -173,6 +211,7 @@ export function GameExperience() {
               <div className="stat-pill wallet-pill"><span className="stat-icon"><Coins size={17} /></span><span><small>WALLET</small><strong>{hydrated ? formatNaira(wallet) : "₦50,000"}</strong></span></div>
               <div className="stat-pill"><span className="stat-icon businesses-icon"><Store size={16} /></span><span><small>BUSINESSES</small><strong>{businesses.length} / 6</strong></span></div>
               <div className="stat-pill"><span className="stat-icon level-icon"><Trophy size={16} /></span><span><small>PLAYER LEVEL</small><strong>{level}</strong></span></div>
+              <div className="stat-pill revenue-pill"><span className="stat-icon revenue-icon"><Coins size={16} /></span><span><small>TOTAL REVENUE</small><strong>{formatNaira(economy.totalRevenue)}</strong></span></div>
             </div>
           </div>
         </section>
@@ -181,6 +220,8 @@ export function GameExperience() {
           <div className="world-column">
             <GameCanvas
               businesses={businesses}
+              customers={economy.activeCustomers}
+              simulationPaused={simulationPaused}
               selectedPlotId={selectedPlotId}
               resetToken={resetToken}
               onPlotSelect={setSelectedPlotId}
@@ -206,6 +247,7 @@ export function GameExperience() {
       </div>
 
       {feedback && <div className="feedback-toast" role="status" aria-live="polite"><span>{feedback}</span><button type="button" onClick={() => setFeedback("")} aria-label="Dismiss message"><X size={16} /></button></div>}
+      {recentSale && <div className="sale-toast" key={recentSale.id} role="status" aria-live="polite"><strong>+{formatNaira(recentSale.revenue)}</strong><span>Sale completed</span></div>}
       {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
       {showResetDialog && <div className="dialog-backdrop" role="presentation"><section className="dialog-panel max-w-sm" role="alertdialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-description">
         <div className="panel-kicker">START FRESH?</div><h2 id="reset-title" className="mt-2 text-2xl font-bold">Reset your progress</h2><p id="reset-description" className="mt-3 text-sm leading-6 text-slate-600">This removes the businesses and wallet saved on this device and resets the game clock. Your neighborhood will return to its starting state.</p>

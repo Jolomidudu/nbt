@@ -11,6 +11,7 @@ export interface SimulationSnapshot {
 
 export interface SimulationContext<State> {
   tickIndex: number;
+  elapsedActiveMs: number;
   elapsedGameMs: number;
   state: Readonly<State>;
 }
@@ -49,6 +50,10 @@ export class SimulationEngine<State = undefined> {
     return this.state;
   }
 
+  setState(state: State): void {
+    this.state = state;
+  }
+
   advance(deltaMs: number): SimulationSnapshot {
     if (!Number.isFinite(deltaMs) || deltaMs <= 0) return this.getSnapshot();
 
@@ -65,10 +70,13 @@ export class SimulationEngine<State = undefined> {
       this.tickIndex += 1;
       const context: SimulationContext<State> = {
         tickIndex: this.tickIndex,
+        elapsedActiveMs: this.tickIndex * SIMULATION_TICK_MS,
         elapsedGameMs: this.tickIndex * SIMULATION_TICK_MS * GAME_TIME_SCALE,
         state: this.state,
       };
-      for (const system of this.systems) this.state = system(context);
+      for (const system of this.systems) {
+        this.state = system({ ...context, state: this.state });
+      }
     }
 
     return this.getSnapshot();
@@ -99,7 +107,7 @@ export class SimulationRunner<State = undefined> {
   constructor(
     private readonly engine: SimulationEngine<State>,
     private readonly scheduler: SimulationScheduler,
-    private readonly onUpdate: (snapshot: SimulationSnapshot) => void,
+    private readonly onUpdate: (snapshot: SimulationSnapshot, state: Readonly<State>) => void,
     manuallyPaused = false,
   ) {
     this.manuallyPaused = manuallyPaused;
@@ -124,12 +132,16 @@ export class SimulationRunner<State = undefined> {
     this.pulse();
   }
 
+  replaceState(state: State): void {
+    this.engine.setState(state);
+  }
+
   setManuallyPaused(paused: boolean): void {
     if (this.manuallyPaused === paused) return;
     this.pulse();
     this.manuallyPaused = paused;
     this.lastNow = this.scheduler.now();
-    this.onUpdate(this.engine.getSnapshot());
+    this.onUpdate(this.engine.getSnapshot(), this.engine.getState());
   }
 
   setVisibilityHidden(hidden: boolean): void {
@@ -137,14 +149,14 @@ export class SimulationRunner<State = undefined> {
     this.pulse();
     this.visibilityHidden = hidden;
     this.lastNow = this.scheduler.now();
-    this.onUpdate(this.engine.getSnapshot());
+    this.onUpdate(this.engine.getSnapshot(), this.engine.getState());
   }
 
   reset(elapsedActiveMs = 0, manuallyPaused = false): void {
     this.engine.reset(elapsedActiveMs);
     this.manuallyPaused = manuallyPaused;
     this.lastNow = this.scheduler.now();
-    this.onUpdate(this.engine.getSnapshot());
+    this.onUpdate(this.engine.getSnapshot(), this.engine.getState());
   }
 
   private pulse(): void {
@@ -152,6 +164,6 @@ export class SimulationRunner<State = undefined> {
     const deltaMs = Math.max(0, now - this.lastNow);
     this.lastNow = now;
     if (!this.manuallyPaused && !this.visibilityHidden) this.engine.advance(deltaMs);
-    this.onUpdate(this.engine.getSnapshot());
+    this.onUpdate(this.engine.getSnapshot(), this.engine.getState());
   }
 }

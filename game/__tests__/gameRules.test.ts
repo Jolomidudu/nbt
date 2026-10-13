@@ -40,9 +40,10 @@ describe("validateGameSave", () => {
     };
     expect(validateGameSave(save)).toEqual({
       ...save,
-      version: 2,
+      version: 3,
       elapsedActiveMs: 0,
       manuallyPaused: false,
+      economy: expect.objectContaining({ totalRevenue: 0, activeCustomers: [] }),
     });
   });
 
@@ -56,10 +57,11 @@ describe("validateGameSave", () => {
       },
     };
     expect(validateGameSave(save)).toMatchObject({
-      version: 2,
+      version: 3,
       player: save.player,
       elapsedActiveMs: 0,
       manuallyPaused: false,
+      economy: expect.objectContaining({ totalRevenue: 0, activeCustomers: [] }),
     });
   });
 
@@ -109,12 +111,13 @@ describe("validateGameSave", () => {
       hydrated: true,
       elapsedActiveMs: 15_000,
     };
-    writeGameSession(playerWithStoreFields, 15_000, true, storage);
+    writeGameSession(playerWithStoreFields, 15_000, true, null, storage);
     expect(JSON.parse(values.get("naija-business-tycoon-save-v1") ?? "{}")).toMatchObject({
-      version: 2,
+      version: 3,
       player: createInitialPlayerState(),
       elapsedActiveMs: 15_000,
       manuallyPaused: true,
+      economy: expect.objectContaining({ currentDay: 1, lastTickIndex: 15 }),
     });
   });
 
