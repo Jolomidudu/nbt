@@ -19,7 +19,6 @@ export function GameExperience() {
   const hydrated = useGameStore((state) => state.hydrated);
   const elapsedActiveMs = useGameStore((state) => state.elapsedActiveMs);
   const manuallyPaused = useGameStore((state) => state.manuallyPaused);
-  const setElapsedActiveMs = useGameStore((state) => state.setElapsedActiveMs);
   const setManuallyPaused = useGameStore((state) => state.setManuallyPaused);
   const resetProgress = useGameStore((state) => state.resetProgress);
   const simulationRunnerRef = useRef<SimulationRunner | null>(null);

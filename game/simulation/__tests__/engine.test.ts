@@ -79,6 +79,12 @@ describe("simulation engine", () => {
     });
   });
 
+  it("retains fractional monotonic-clock milliseconds across samples", () => {
+    const engine = new SimulationEngine();
+    for (let sample = 0; sample < 100; sample += 1) engine.advance(100.5);
+    expect(engine.getSnapshot().elapsedActiveMs).toBe(10_050);
+  });
+
   it("produces deterministic state for the same initial state and accepted ticks", () => {
     const firstElapsedAtTicks: number[] = [];
     const secondElapsedAtTicks: number[] = [];

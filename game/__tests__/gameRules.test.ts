@@ -88,9 +88,9 @@ describe("validateGameSave", () => {
     })]]);
     const storage = {
       getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => values.set(key, value),
-      removeItem: (key: string) => values.delete(key),
-    } as Storage;
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    } as unknown as Storage;
     const session = loadGameSession(storage);
     expect(session?.player.wallet).toBe(30_000);
     expect(session?.player.businesses).toHaveLength(1);
@@ -101,9 +101,9 @@ describe("validateGameSave", () => {
     const values = new Map<string, string>();
     const storage = {
       getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => values.set(key, value),
-      removeItem: (key: string) => values.delete(key),
-    } as Storage;
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    } as unknown as Storage;
     writeGameSession(createInitialPlayerState(), 15_000, true, storage);
     expect(JSON.parse(values.get("naija-business-tycoon-save-v1") ?? "{}")).toMatchObject({
       version: 2,

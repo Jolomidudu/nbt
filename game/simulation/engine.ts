@@ -27,6 +27,7 @@ export class SimulationEngine<State = undefined> {
   private elapsedActiveMs: number;
   private tickIndex: number;
   private accumulatorMs: number;
+  private fractionalMs = 0;
   private state: State;
 
   constructor(
@@ -51,7 +52,10 @@ export class SimulationEngine<State = undefined> {
   advance(deltaMs: number): SimulationSnapshot {
     if (!Number.isFinite(deltaMs) || deltaMs <= 0) return this.getSnapshot();
 
-    const acceptedMs = Math.min(Math.floor(deltaMs), MAX_FRAME_DELTA_MS);
+    const cappedDeltaMs = Math.min(deltaMs, MAX_FRAME_DELTA_MS);
+    const accumulatedDeltaMs = cappedDeltaMs + this.fractionalMs;
+    const acceptedMs = Math.min(Math.floor(accumulatedDeltaMs), MAX_FRAME_DELTA_MS);
+    this.fractionalMs = acceptedMs === MAX_FRAME_DELTA_MS ? 0 : accumulatedDeltaMs - acceptedMs;
     const boundedMs = Math.min(acceptedMs, MAX_ELAPSED_ACTIVE_MS - this.elapsedActiveMs);
     this.elapsedActiveMs += boundedMs;
     this.accumulatorMs += boundedMs;
@@ -74,6 +78,7 @@ export class SimulationEngine<State = undefined> {
     this.elapsedActiveMs = this.normalizeElapsed(elapsedActiveMs);
     this.tickIndex = Math.floor(this.elapsedActiveMs / SIMULATION_TICK_MS);
     this.accumulatorMs = this.elapsedActiveMs % SIMULATION_TICK_MS;
+    this.fractionalMs = 0;
     this.state = state;
   }
 
